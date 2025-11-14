@@ -2,9 +2,15 @@ export default {
   async fetch(request, env, ctx) {
     // Configuração
     const ORIGIN_HOST = 'erp.growatt.app'; // O domínio que o servidor JÁ aceita/espera
+    const PROXY_HOST = 'erp-old.growatt.app'; // O domínio que deve ser interceptado
 
     // Clona a URL original (erp-old...)
     const url = new URL(request.url);
+
+    // Se não for o domínio correto, apenas retorna a requisição original
+    if (url.hostname !== PROXY_HOST) {
+      return fetch(request);
+    }
 
     // Altera o hostname da URL para o original para fins de roteamento
     url.hostname = ORIGIN_HOST;
