@@ -1,35 +1,29 @@
 export default {
   async fetch(request, env, ctx) {
-    // Configuração
-    const ORIGIN_HOST = 'erp.growatt.app'; // O domínio que o servidor JÁ aceita/espera
-    const PROXY_HOST = 'erp-old.growatt.app'; // O domínio que deve ser interceptado
+    // 1. O domínio que o servidor Nginx/Traefik espera receber
+    const ORIGINAL_HOST = 'erp.growatt.app';
 
-    // Clona a URL original (erp-old...)
+    // 2. O domínio "técnico" que aponta direto pro IP (Nuvem Cinza)
+    const DIRECT_ORIGIN = 'erp-old.growatt.app'; 
+
     const url = new URL(request.url);
 
-    // Se não for o domínio correto, apenas retorna a requisição original
-    if (url.hostname !== PROXY_HOST) {
-      return fetch(request);
-    }
+    // Truque: Mantemos o caminho (/login, /api), mas trocamos o servidor de destino
+    // para o endereço que resolve direto o IP (bypass Cloudflare Proxy)
+    url.hostname = DIRECT_ORIGIN;
 
-    // Altera o hostname da URL para o original para fins de roteamento
-    url.hostname = ORIGIN_HOST;
+    // Cria a nova requisição
+    const newRequest = new Request(url.toString(), request);
 
-    // Cria novos headers baseados na requisição original
-    const headers = new Headers(request.headers);
-    
-    // REESCREVE o cabeçalho Host.
-    // O servidor vai achar que o usuário acessou "erp.growatt.app"
-    headers.set('Host', ORIGIN_HOST);
+    // O MAIS IMPORTANTE: Forçamos o cabeçalho Host.
+    // Assim, seu servidor recebe a conexão vinda do IP direto, 
+    // mas acha que o usuário digitou "erp.growatt.app"
+    newRequest.headers.set('Host', ORIGINAL_HOST);
 
-    // Cria uma nova requisição com os headers modificados
-    const newRequest = new Request(url.toString(), {
-      method: request.method,
-      headers: headers,
-      body: request.body
-    });
+    // Se o seu servidor usa HTTPS com verificação restrita de SNI,
+    // pode ser necessário desativar a verificação SSL do Worker (opcional, tente sem primeiro)
+    // mas geralmente o fetch padrão funciona se o certificado do servidor cobrir o domínio.
 
-    // Envia a requisição para o servidor original e devolve a resposta para o usuário
     return fetch(newRequest);
   }
-}
+};
